@@ -3,6 +3,7 @@
 mod fonts;
 mod parser;
 mod bitmap;
+mod consts;
 
 use std::{rc::Rc, time::Instant};
 
@@ -17,15 +18,46 @@ fn main() -> Result<(), std::fmt::Error> {
 
     let element = KElement::LinearGroup(vec![
         KElement::Fraction(
-            Rc::new(KElement::Integer(123)),
+            Rc::new(KElement::LinearGroup(vec![
+                KElement::Integer(123),
+                KElement::Text("*".to_string()),
+                KElement::Superscript(
+                    Rc::new(KElement::Integer(123)),
+                    Rc::new(KElement::Integer(2))
+                )
+            ])),
             Rc::new(KElement::Integer(12))
         ),
         // KElement::Integer(12),
         // KElement::Integer(12),
         KElement::Decimal(12.34),
         KElement::Fraction(
-            Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Integer(12)))),
-            Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Fraction(Rc::new(KElement::Integer(123)),Rc::new(KElement::Decimal(1234.5678)))))))))))))))),
+            Rc::new(KElement::Fraction(
+                Rc::new(KElement::Integer(123)),
+                Rc::new(KElement::Integer(12)))
+            ),
+            Rc::new(KElement::Fraction(
+                Rc::new(KElement::Integer(123)),
+                Rc::new(KElement::Fraction(
+                    Rc::new(KElement::Integer(123)),
+                    Rc::new(KElement::Fraction(
+                        Rc::new(KElement::Integer(123)),
+                        Rc::new(KElement::Fraction(
+                            Rc::new(KElement::Integer(123)),
+                            Rc::new(KElement::Fraction(
+                                Rc::new(KElement::Integer(123)),
+                                Rc::new(KElement::Fraction(
+                                    Rc::new(KElement::Integer(123)),
+                                    Rc::new(KElement::Fraction(
+                                        Rc::new(KElement::Integer(123)),
+                                        Rc::new(KElement::Decimal(1234.5678))
+                                    ))
+                                ))
+                            ))
+                        ))
+                    ))
+                ))
+            )),
         ),
     ]);
 
@@ -42,8 +74,8 @@ fn main() -> Result<(), std::fmt::Error> {
 }
 
 struct RusTeX {
-    settings: TeXSettings,
-    layout: Layout
+    pub settings: TeXSettings,
+    pub layout: Layout
 }
 
 struct TeXSettings {
@@ -69,6 +101,7 @@ impl RusTeX {
     // }
 
     pub fn rasterize(&mut self, root_element: KElement) -> Bitmap {
-        root_element.rasterize(&mut self.layout, self.settings.scale)
+        let scale = self.settings.scale;
+        root_element.rasterize(self, scale)
     }
 }

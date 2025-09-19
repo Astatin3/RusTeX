@@ -2,36 +2,26 @@ use std::rc::Rc;
 
 use fontdue::layout::{Layout, TextStyle};
 
-use crate::{bitmap::Bitmap, fonts::FONTS};
+use crate::{bitmap::Bitmap, fonts::FONTS, RusTeX, consts::*};
+
 
 pub enum KElement {
     LinearGroup(Vec<KElement>),
     Integer(i64),
     Decimal(f64),
+    Text(String),
     Fraction(Rc<KElement>, Rc<KElement>),
+    Superscript(Rc<KElement>, Rc<KElement>),
 }
 
-pub static FRACTION_SCALE: f32 = 1.;
-// pub static FRACTION_PADDING: usize = 10;
-
-// pub enum KSymbol {
-//     Text {
-//         data: String,
-//         x: f32,
-//         y: f32,
-//         scale: f32
-//     },
-//     None,
-// }
-
 impl KElement {
-    pub fn rasterize(&self, layout: &mut Layout, scale: f32) -> Bitmap {
+    pub fn rasterize(&self, globals: &mut RusTeX, current_scale: f32) -> Bitmap {
         match self {
             KElement::LinearGroup(elems) => {
                 let (mut totalx, mut maxy) = (0,0);
                 let mut positions = Vec::new();
                 for elem in elems {
-                    let (x,y) = elem.get_bounds(layout, scale);
+                    let (x,y) = elem.get_bounds(globals, current_scale);
                     positions.push((totalx,y));
                     totalx += x;
                     maxy = maxy.max(y);
@@ -42,7 +32,7 @@ impl KElement {
                 for i in 0..elems.len() {
                     let elem = &elems[i];
                     let pos = positions[i];
-                    let new_bitmap = elem.rasterize(layout, scale);
+                    let new_bitmap = elem.rasterize(globals, current_scale);
                     // println!("{:?} {:?} {:?}", (bitmap.width, bitmap.height), pos, (new_bitmap.width, new_bitmap.height));
                     bitmap.overlay(&new_bitmap, pos.0, (maxy-pos.1)/2);
                 }
@@ -50,28 +40,38 @@ impl KElement {
                 bitmap
             }
             KElement::Integer(i) => {
-                render_text_block(layout, &i.to_string(), scale)
+                render_text_block(&mut globals.layout, &i.to_string(), current_scale)
             },
             KElement::Decimal(i) => {
-                render_text_block(layout, &i.to_string(), scale)
+                render_text_block(&mut globals.layout, &i.to_string(), current_scale)
+            },            
+            KElement::Text(str) => {
+                render_text_block(&mut globals.layout, &str, current_scale)
             },
             KElement::Fraction(a,b) => {
-                let (ax,ay) = a.get_bounds(layout, scale * FRACTION_SCALE);
-                let (bx,by) = b.get_bounds(layout, scale * FRACTION_SCALE);
-                let (width, height) = (ax.max(bx), ay+by);
+                let padding = (FRACTION_PADDING * globals.settings.scale) as usize;
+                let (ax,ay) = a.get_bounds(globals, current_scale * FRACTION_SCALE);
+                let (bx,by) = b.get_bounds(globals, current_scale * FRACTION_SCALE);
+
+                let (width, height) = (
+                    ax.max(bx) + padding*2, 
+                    ay+by + padding
+                );
 
                 let mut bitmap = Bitmap::new(width, height);
                 
-                let bitmap_a = &mut a.rasterize(layout, scale * FRACTION_SCALE);
-                let bitmap_b = &mut b.rasterize(layout, scale * FRACTION_SCALE);
+                let bitmap_a = &mut a.rasterize(globals, current_scale * FRACTION_SCALE);
+                let bitmap_b = &mut b.rasterize(globals, current_scale * FRACTION_SCALE);
 
                 if bitmap_a.width > bitmap_b.width {
-                    bitmap.overlay(&bitmap_a, 0, 0);
-                    bitmap.overlay(&bitmap_b, (bitmap_a.width-bitmap_b.width)/2, ay);
+                    bitmap.overlay(&bitmap_a, padding, 0);
+                    bitmap.overlay(&bitmap_b, padding+(bitmap_a.width-bitmap_b.width)/2, ay + padding);
                 } else {
-                    bitmap.overlay(&bitmap_a, (bitmap_b.width-bitmap_a.width)/2, 0);
-                    bitmap.overlay(&bitmap_b, 0, ay);
+                    bitmap.overlay(&bitmap_a, padding+(bitmap_b.width-bitmap_a.width)/2, 0);
+                    bitmap.overlay(&bitmap_b, padding, ay + padding);
                 }
+
+                bitmap.draw_line(0, ay+padding, bitmap.width, ay+padding, globals.settings.scale*LINE_WIDTH, 255);
 
                 bitmap
 
@@ -80,30 +80,60 @@ impl KElement {
                 // symbols
             
             }
+            KElement::Superscript(a, b) => {
+                let (ax, ay) = a.get_bounds(globals, current_scale);
+                let (bx, by) = b.get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
+                let yoffset = (by as f32*SUPERSCRIPT_Y_OFFSET) as usize;
+
+                let (width, height) = (
+                    ax+bx,
+                    ay + yoffset
+                );
+                let mut bitmap = Bitmap::new(width, height);
+
+                bitmap.overlay(&a.rasterize(globals, current_scale), 0, yoffset);
+                bitmap.overlay(&b.rasterize(globals, current_scale * SUPERSCRIPT_SCALE), ax, 0);
+
+                bitmap
+            }
         }
     }
-    pub fn get_bounds(&self, layout: &mut Layout, scale: f32) -> (usize, usize) {
+    pub fn get_bounds(&self, globals: &mut RusTeX, current_scale: f32) -> (usize, usize) {
         match self {
             KElement::LinearGroup(elems) => {
                 let (mut totalx, mut maxy) = (0,0);
                 for elem in elems {
-                    let (x,y) = elem.get_bounds(layout, scale);
+                    let (x,y) = elem.get_bounds(globals, current_scale);
                     totalx += x;
                     maxy = maxy.max(y);
                 }
                 (totalx, maxy)
             }
             KElement::Integer(i) => {
-                measure_text_bounds(layout, &i.to_string(), scale)
+                measure_text_bounds(&mut globals.layout, &i.to_string(), current_scale)
             },
             KElement::Decimal(i) => {
-                measure_text_bounds(layout, &i.to_string(), scale)
+                measure_text_bounds(&mut globals.layout, &i.to_string(), current_scale)
+            },
+            KElement::Text(str) => {
+                measure_text_bounds(&mut globals.layout, &str, current_scale)
             },
             KElement::Fraction(a,b) => {
-                let (ax,ay) = a.get_bounds(layout, scale * FRACTION_SCALE);
-                let (bx,by) = b.get_bounds(layout, scale * FRACTION_SCALE);
-                (ax.max(bx), ay+by)
+                let (ax,ay) = a.get_bounds(globals, current_scale * FRACTION_SCALE);
+                let (bx,by) = b.get_bounds(globals, current_scale * FRACTION_SCALE);
+                (
+                    (ax.max(bx)) + 2*(FRACTION_PADDING * globals.settings.scale) as usize, 
+                    ay+by + (FRACTION_PADDING * globals.settings.scale) as usize
+                )
             },
+            KElement::Superscript(a, b) => {
+                let (ax, ay) = a.get_bounds(globals, current_scale);
+                let (bx, by) = b.get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
+                (
+                    ax+bx,
+                    ay + (by as f32*SUPERSCRIPT_Y_OFFSET) as usize
+                )
+            }
 
         }
     }
@@ -116,10 +146,10 @@ impl KElement {
 //     //         _ => (0.,0.)
 //     //     }
 //     // }
-//     pub fn rasterize(&self, layout: &mut Layout, bitmap: &mut Bitmap) {
+//     pub fn rasterize(&self, globals.layout: &mut Layout, bitmap: &mut Bitmap) {
 //         match self {
 //             KSymbol::Text { data, x, y, scale } => {
-//                 let new_bitmap = render_text_block(layout, data, *scale);
+//                 let new_bitmap = render_text_block(globals.layout, data, *scale);
 //                 bitmap.overlay(&new_bitmap, *x as usize, *y as usize);
 //             },
 //             KSymbol::None => {},
