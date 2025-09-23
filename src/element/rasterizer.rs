@@ -1,18 +1,7 @@
-use std::rc::Rc;
-
 use fontdue::layout::{Layout, TextStyle};
 
-use crate::{bitmap::Bitmap, fonts::FONTS, RusTeX, consts::*};
+use crate::{bitmap::Bitmap, consts::*, element::KElement, fonts::FONTS, RusTeX};
 
-
-pub enum KElement {
-    LinearGroup(Vec<KElement>),
-    Integer(i64),
-    Decimal(f64),
-    Text(String),
-    Fraction(Rc<KElement>, Rc<KElement>),
-    Superscript(Rc<KElement>, Rc<KElement>),
-}
 
 impl KElement {
     pub fn rasterize(&self, globals: &mut RusTeX, current_scale: f32) -> Bitmap {
@@ -48,10 +37,10 @@ impl KElement {
             KElement::Text(str) => {
                 render_text_block(&mut globals.layout, &str, current_scale)
             },
-            KElement::Fraction(a,b) => {
-                let padding = (FRACTION_PADDING * globals.settings.scale) as usize;
-                let (ax,ay) = a.get_bounds(globals, current_scale * FRACTION_SCALE);
-                let (bx,by) = b.get_bounds(globals, current_scale * FRACTION_SCALE);
+            KElement::Fraction{upper,lower} => {
+                let padding = (FRACTION_PADDING * current_scale) as usize;
+                let (ax,ay) = upper.get_bounds(globals, current_scale * FRACTION_SCALE);
+                let (bx,by) = lower.get_bounds(globals, current_scale * FRACTION_SCALE);
 
                 let (width, height) = (
                     ax.max(bx) + padding*2, 
@@ -60,8 +49,8 @@ impl KElement {
 
                 let mut bitmap = Bitmap::new(width, height);
                 
-                let bitmap_a = &mut a.rasterize(globals, current_scale * FRACTION_SCALE);
-                let bitmap_b = &mut b.rasterize(globals, current_scale * FRACTION_SCALE);
+                let bitmap_a = &mut upper.rasterize(globals, current_scale * FRACTION_SCALE);
+                let bitmap_b = &mut lower.rasterize(globals, current_scale * FRACTION_SCALE);
 
                 if bitmap_a.width > bitmap_b.width {
                     bitmap.overlay(&bitmap_a, padding, 0);
@@ -80,21 +69,31 @@ impl KElement {
                 // symbols
             
             }
-            KElement::Superscript(a, b) => {
-                let (ax, ay) = a.get_bounds(globals, current_scale);
-                let (bx, by) = b.get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
-                let yoffset = (by as f32*SUPERSCRIPT_Y_OFFSET) as usize;
+            KElement::SuperSub{inner, upper, lower} => {
+                let (ax, ay) = inner.get_bounds(globals, current_scale);
+                if upper.is_some() && lower.is_some() {
+                    todo!();
+                } else if upper.is_some() {
+                    let upper = upper.as_ref().unwrap();
+                    let (bx, by) = upper.get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
+                    let yoffset = (by as f32*SUPERSCRIPT_Y_OFFSET) as usize;
 
-                let (width, height) = (
-                    ax+bx,
-                    ay + yoffset
-                );
-                let mut bitmap = Bitmap::new(width, height);
+                    let (width, height) = (
+                        ax+bx,
+                        ay + yoffset
+                    );
+                    let mut bitmap = Bitmap::new(width, height);
 
-                bitmap.overlay(&a.rasterize(globals, current_scale), 0, yoffset);
-                bitmap.overlay(&b.rasterize(globals, current_scale * SUPERSCRIPT_SCALE), ax, 0);
+                    bitmap.overlay(&inner.rasterize(globals, current_scale), 0, yoffset);
+                    bitmap.overlay(&upper.rasterize(globals, current_scale * SUPERSCRIPT_SCALE), ax, 0);
 
-                bitmap
+                    bitmap
+
+                } else if lower.is_some() {
+                    todo!();
+                } else {
+                    unreachable!()
+                }
             }
         }
     }
@@ -118,21 +117,30 @@ impl KElement {
             KElement::Text(str) => {
                 measure_text_bounds(&mut globals.layout, &str, current_scale)
             },
-            KElement::Fraction(a,b) => {
-                let (ax,ay) = a.get_bounds(globals, current_scale * FRACTION_SCALE);
-                let (bx,by) = b.get_bounds(globals, current_scale * FRACTION_SCALE);
+            KElement::Fraction{upper,lower} => {
+                let (ax,ay) = upper.get_bounds(globals, current_scale * FRACTION_SCALE);
+                let (bx,by) = lower.get_bounds(globals, current_scale * FRACTION_SCALE);
                 (
-                    (ax.max(bx)) + 2*(FRACTION_PADDING * globals.settings.scale) as usize, 
-                    ay+by + (FRACTION_PADDING * globals.settings.scale) as usize
+                    (ax.max(bx)) + 2*(FRACTION_PADDING * current_scale) as usize, 
+                    ay+by + (FRACTION_PADDING * current_scale) as usize
                 )
             },
-            KElement::Superscript(a, b) => {
-                let (ax, ay) = a.get_bounds(globals, current_scale);
-                let (bx, by) = b.get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
-                (
-                    ax+bx,
-                    ay + (by as f32*SUPERSCRIPT_Y_OFFSET) as usize
-                )
+            KElement::SuperSub{inner, upper, lower} => {
+                let (ax, ay) = inner.get_bounds(globals, current_scale);
+                if upper.is_some() && lower.is_some() {
+                    todo!();
+                } else if upper.is_some() {
+                    let (bx, by) = upper.as_ref().unwrap().get_bounds(globals, current_scale * SUPERSCRIPT_SCALE);
+                    (
+                        ax+bx,
+                        ay + (by as f32*SUPERSCRIPT_Y_OFFSET) as usize
+                    )
+                } else if lower.is_some() {
+                    todo!();
+                } else {
+                    unreachable!()
+                }
+
             }
 
         }

@@ -101,8 +101,8 @@ impl Bitmap {
         }
 
         // Unit vector perpendicular to the line
-        let perp_x = -dy / length;
-        let perp_y = dx / length;
+        // let perp_x = -dy / length;
+        // let perp_y = dx / length;
 
         // Half thickness for calculations
         let half_thickness = thickness * 0.5;
