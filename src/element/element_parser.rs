@@ -39,36 +39,37 @@ impl KElement {
                 } => {
                     if !super_script.is_empty() && !sub_script.is_empty() {
                         root.push(KElement::SuperSub { 
-                            inner: Rc::new(KElement::Text(text.clone())), 
+                            inner: Rc::new(Self::parse_text(text)), 
                             upper: Some(Rc::new(Self::parse_object(super_script)?)), 
                             lower: Some(Rc::new(Self::parse_object(sub_script)?)), 
                         });
                     } else if !super_script.is_empty() {
                         root.push(KElement::SuperSub { 
-                            inner: Rc::new(KElement::Text(text.clone())), 
+                            inner: Rc::new(Self::parse_text(text)), 
                             upper: Some(Rc::new(Self::parse_object(super_script)?)), 
                             lower: None 
                         });
                     } else if !sub_script.is_empty() {
                         root.push(KElement::SuperSub { 
-                            inner: Rc::new(KElement::Text(text.clone())), 
+                            inner: Rc::new(Self::parse_text(text)), 
                             upper: None,
                             lower: Some(Rc::new(Self::parse_object(super_script)?))
                         });
                     } else {
-                        root.push(KElement::Text(text.clone()));
+                        root.push(Self::parse_text(text));
                     }
                 },
                 text_parser::ParsedObject::Operator { 
                     text 
                 } => {
-                    root.push(KElement::Text(text.clone()));
+                    root.push(KElement::from_symbol(text)?);
                 },
                 text_parser::ParsedObject::Parenthesis { 
-                    inner, 
-                    parenthesis_type, 
-                    super_script, 
-                    sub_script 
+                    // inner, 
+                    // parenthesis_type, 
+                    // super_script, 
+                    // sub_script 
+                    ..
                 } => {
                 },
             }
@@ -76,6 +77,16 @@ impl KElement {
 
 
         return Ok(KElement::LinearGroup(root));
+    }
+
+    pub fn parse_text(str: &str) -> KElement {
+        if let Ok(num) = str.parse::<f64>() {
+            KElement::Decimal(num)
+        } else if let Ok(num) = str.parse::<i64>() {
+            KElement::Integer(num)
+        } else {
+            KElement::Text(str.to_string())
+        }
     }
     
 }

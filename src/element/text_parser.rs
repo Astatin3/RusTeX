@@ -1,3 +1,162 @@
+// use regex::{Captures, Regex};
+// use lazy_static::lazy_static;
+// use std::collections::VecDeque;
+
+// lazy_static! {
+//     static ref FUNCTION_REGEX: Regex = Regex::new(r"\\([a-zA-Z]+)(\s*(?:\{[^}]*\}|[^_^{}\s\\])*)\s*(?:_(\{[^}]*\}|[^_^{}\s\\]))?\s*(?:\^(\{[^}]*\}|[^_^{}\s\\]))?").unwrap();
+//     static ref TEXT_REGEX: Regex = Regex::new(r"^\{\}<>()\[\]]+").unwrap();
+// }
+
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum PerenthesisType {
+//     Round,    // ()
+//     Square,   // []
+//     // Curly,    // {}
+//     // Angle,    // <>
+// }
+
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum ParsedObject {
+//     Func {
+//         name: String,
+//         content: Vec<Vec<ParsedObject>>,
+//         super_script: Vec<ParsedObject>,
+//         sub_script: Vec<ParsedObject>,
+//     },
+//     Var {
+//         text: String,
+//         super_script: Vec<ParsedObject>,
+//         sub_script: Vec<ParsedObject>,
+//     },
+//     Operator {
+//         text: String,
+//     },
+//     Parenthesis {
+//         inner: Vec<ParsedObject>,
+//         parenthesis_type: PerenthesisType,
+//         super_script: Vec<ParsedObject>,
+//         sub_script: Vec<ParsedObject>,
+//     },
+// }
+
+// pub fn parse(input: &str) -> Result<Vec<ParsedObject>, String> {
+//     if input.is_empty() {
+//         return Ok(Vec::new())
+//     }
+
+//     let mut i = 0;
+
+//     let mut objects = Vec::new();
+
+//     for i in 0..input.len() {
+//         // let mut functions = FUNCTION_REGEX.is_match_at();
+//         // FUNCTION_REGEX.(&mut functions, input);
+//         // for i in 0..functions.len() {
+//         //     println!("{:?}", functions.get(i));
+//         // }
+
+//         if TEXT_REGEX.is_match_at(input, i) {
+//             println!("TEXT!")
+//         } else if FUNCTION_REGEX.is_match_at(input, i) {
+//             println!("FUNCTION!")
+//         } else {
+//             break;
+//         }
+//     }
+
+
+
+//     // loop {
+        
+//     // }
+
+//     // for captures in FUNCTION_REGEX.captures_iter(input) {
+//     //     objects.push(parse_function(&captures)?);
+//     // }
+
+//     // println!("{:?}", objects);
+
+//     // let capture_locations = FUNCTION_REGEX.captures_read(locs, haystack);
+
+//     // loop {
+        
+//     // }
+
+
+//     Ok(objects)
+// }
+
+// fn parse_function(captures: &Captures) -> Result<(usize, ParsedObject), String> {
+//     let name = captures.get(1).unwrap().as_str();
+//     let args_str = captures.get(2).map_or("", |m| m.as_str());
+//     let sub = captures.get(3).map(|m| m.as_str());
+//     let super_script = captures.get(4).map(|m| m.as_str());
+
+//     let len = captures.iter().map(|c| c.iter().len()).sum::<usize>();
+    
+//     // Parse arguments
+//     let mut args = Vec::new();
+//     let args_clean = args_str.trim();
+//     if !args_clean.is_empty() {
+//         let mut i = 0;
+//         let chars: Vec<char> = args_clean.chars().collect();
+//         while i < chars.len() {
+//             if chars[i] == '{' {
+//                 let mut brace_content = String::new();
+//                 i += 1;
+//                 while i < chars.len() && chars[i] != '}' {
+//                     brace_content.push(chars[i]);
+//                     i += 1;
+//                 }
+//                 args.push(brace_content);
+//                 i += 1;
+//             } else if chars[i] != ' ' {
+//                 args.push(chars[i].to_string());
+//                 i += 1;
+//             } else {
+//                 i += 1;
+//             }
+//         }
+//     }
+    
+//     // Clean up sub/super (remove braces if present)
+//     let sub_clean = sub.map(|s| if s.starts_with('{') && s.ends_with('}') {
+//         &s[1..s.len()-1]
+//     } else { s });
+//     let super_clean = super_script.map(|s| if s.starts_with('{') && s.ends_with('}') {
+//         &s[1..s.len()-1] 
+//     } else { s });
+    
+//     Ok(
+//         (
+//         len,
+//         ParsedObject::Func { 
+//             name: name.to_string(), 
+//             content: parse_string_arr(&args)?, 
+//             super_script: if let Some(super_clean) = super_clean {
+//                 parse(super_clean)?
+//             } else {
+//                 Vec::new()
+//             }, 
+//             sub_script: if let Some(sub_clean) = sub_clean {
+//                 parse(sub_clean)?
+//             } else {
+//                 Vec::new()
+//             }, 
+//         }
+//     ))
+// }
+
+// fn parse_string_arr(args: &Vec<String>) -> Result<Vec<Vec<ParsedObject>>, String> {
+//     let mut result_vec = Vec::new();
+//     for arg in args {
+//         result_vec.push(parse(arg)?);
+//     }
+//     Ok(result_vec)
+// }
+
+
+
 use regex::Regex;
 use lazy_static::lazy_static;
 use std::collections::VecDeque;

@@ -44,13 +44,13 @@ impl KElement {
                 bitmap
             }
             KElement::Integer(i) => {
-                render_text_block(&mut globals.layout, &i.to_string(), current_scale)
+                Self::render_text_block(&mut globals.layout, &i.to_string(), 0, current_scale, TEXT_X_PADDING)
             },
             KElement::Decimal(i) => {
-                render_text_block(&mut globals.layout, &i.to_string(), current_scale)
+                Self::render_text_block(&mut globals.layout, &i.to_string(), 0, current_scale, TEXT_X_PADDING)
             },            
             KElement::Text(str) => {
-                render_text_block(&mut globals.layout, &str, current_scale)
+                Self::render_text_block(&mut globals.layout, &str, 1, current_scale, TEXT_X_PADDING)
             },
             KElement::Fraction{upper,lower} => {
                 let padding = (FRACTION_PADDING * current_scale) as usize;
@@ -110,21 +110,38 @@ impl KElement {
                     unreachable!()
                 }
             }
+            _ => self.rasterize_symbol(globals, current_scale),
         }
     }
     pub fn get_bounds(&self, globals: &mut RusTeX, current_scale: f32) -> (usize, usize, usize) {
         match self {
             KElement::LinearGroup(elems) => {
-                bounds_of_linear_group(elems, globals, current_scale)
+                let (mut totalx, mut mintop, mut maxbottom): (usize, usize, usize) = (0,0,0);
+                for elem in elems {
+                    let (width, height, centery) = elem.get_bounds(globals, current_scale);
+                    totalx += width;
+                    let top = centery;
+                    let bottom = height - centery;
+
+
+                    mintop = mintop.max(top);
+                    maxbottom = maxbottom.max(bottom);
+                }
+
+                (
+                    totalx,
+                    maxbottom + mintop,
+                    mintop
+                )
             }
             KElement::Integer(i) => {
-                measure_text_bounds(&mut globals.layout, &i.to_string(), current_scale)
+                Self::measure_text_bounds(&mut globals.layout, &i.to_string(), 0, current_scale, TEXT_X_PADDING, TEXT_OFFSET)
             },
             KElement::Decimal(i) => {
-                measure_text_bounds(&mut globals.layout, &i.to_string(), current_scale)
+                Self::measure_text_bounds(&mut globals.layout, &i.to_string(), 0, current_scale, TEXT_X_PADDING, TEXT_OFFSET)
             },
             KElement::Text(str) => {
-                measure_text_bounds(&mut globals.layout, &str, current_scale)
+                Self::measure_text_bounds(&mut globals.layout, &str, 1, current_scale, TEXT_X_PADDING, TEXT_OFFSET)
             },
             KElement::Fraction{upper,lower} => {
                 let (ax,ay, _) = upper.get_bounds(globals, current_scale * FRACTION_SCALE);
@@ -153,85 +170,59 @@ impl KElement {
                 }
 
             }
+            _ => Self::get_symbol_bounds(&self, globals, current_scale),
 
         }
     }
 }
 
-fn bounds_of_linear_group(elems: &Vec<KElement>, globals: &mut RusTeX, current_scale: f32) -> (usize, usize, usize) {
-    // let common_centery = elems[0].get_bounds(globals, current_scale);
+impl KElement {
+    pub fn measure_text_bounds(layout: &mut Layout, text: &str, font_index: usize, scale:f32, x_padding: f32, center_offset:f32) -> (usize, usize, usize) {
+        layout.clear();
+        layout.append(&FONTS, &TextStyle::new(text, scale, font_index));
 
-    let (mut totalx, mut mintop, mut maxbottom): (usize, usize, usize) = (0,0,0);
-    for elem in elems {
-        let (width, height, centery) = elem.get_bounds(globals, current_scale);
-        totalx += width;
-        let top = centery;
-        let bottom = height - centery;
+        let (mut width, mut height): (usize, usize) = (0,0);
+        for glyph in layout.glyphs() {
+            width = width.max(glyph.x as usize + glyph.width);
+            height = height.max(glyph.y as usize + glyph.height);
+        }
 
+        (
+            width + 2*(scale*x_padding) as usize, 
+            height, 
+            height/2 + ((center_offset)*scale) as usize
+        )
 
-        mintop = mintop.max(top);
-        maxbottom = maxbottom.max(bottom);
     }
 
-    (
-        totalx,
-        maxbottom + mintop,
-        mintop
-    )
-}
+    pub fn render_text_block(layout: &mut Layout, text: &str, font_index: usize, scale:f32, x_padding: f32) -> Bitmap {
+        layout.clear();
 
-// impl KSymbol {
-//     // pub fn get_max_bounds(&self) -> (f32, f32) {
-//     //     match self {
-//     //         KSymbol::Text { x, y, ..} => (*x,*y),
-//     //         _ => (0.,0.)
-//     //     }
-//     // }
-//     pub fn rasterize(&self, globals.layout: &mut Layout, bitmap: &mut Bitmap) {
-//         match self {
-//             KSymbol::Text { data, x, y, scale } => {
-//                 let new_bitmap = render_text_block(globals.layout, data, *scale);
-//                 bitmap.overlay(&new_bitmap, *x as usize, *y as usize);
-//             },
-//             KSymbol::None => {},
-//         }
-//     }
-// }
+        layout.append(&FONTS, &TextStyle::new(text, scale, font_index));
 
-fn measure_text_bounds(layout: &mut Layout, text: &str, scale:f32) -> (usize, usize, usize) {
-    layout.clear();
-    layout.append(&FONTS, &TextStyle::new(text, scale, 0));
+        let (mut width, mut height): (usize, usize) = (0,0);
+        for glyph in layout.glyphs() {
+            width = width.max(glyph.x as usize + glyph.width);
+            height = height.max(glyph.y as usize + glyph.height);
+        }
 
-    let (mut width, mut height): (usize, usize) = (0,0);
-    for glyph in layout.glyphs() {
-        width = width.max(glyph.x as usize + glyph.width);
-        height = height.max(glyph.y as usize + glyph.height);
+        let mut new_bitmap = Bitmap::new(width + 2*(scale*x_padding) as usize, height);
+
+        for glyph in layout.glyphs() {
+
+            let font = &FONTS[glyph.font_index];
+            let (_, char_bitmap) = font.rasterize_config(glyph.key);
+            
+            new_bitmap.overlay(
+                &Bitmap::from_data(
+                    char_bitmap, 
+                    glyph.width, 
+                    glyph.height
+                ), 
+                glyph.x as usize + (scale*x_padding) as usize, 
+                glyph.y as usize);
+        }
+
+        new_bitmap
     }
-
-    (width, height, height/2)
-
-}
-
-fn render_text_block(layout: &mut Layout, text: &str, scale:f32) -> Bitmap {
-    layout.clear();
-
-    layout.append(&FONTS, &TextStyle::new(text, scale, 0));
-
-    let (mut width, mut height): (usize, usize) = (0,0);
-    for glyph in layout.glyphs() {
-        width = width.max(glyph.x as usize + glyph.width);
-        height = height.max(glyph.y as usize + glyph.height);
-    }
-
-    let mut new_bitmap = Bitmap::new(width, height);
-
-    for glyph in layout.glyphs() {
-
-        let font = &FONTS[glyph.font_index];
-        let (_, char_bitmap) = font.rasterize_config(glyph.key);
-        
-        new_bitmap.overlay(&Bitmap::from_data(char_bitmap, glyph.width, glyph.height), glyph.x as usize, glyph.y as usize);
-    }
-
-    new_bitmap
 }

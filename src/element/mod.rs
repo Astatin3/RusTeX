@@ -4,6 +4,7 @@ mod rasterizer;
 mod text_parser;
 mod element_parser;
 mod functions;
+mod symbols;
 
 pub enum KElement {
     LinearGroup(Vec<KElement>),
@@ -19,4 +20,9 @@ pub enum KElement {
         upper: Option<Rc<KElement>>,
         lower: Option<Rc<KElement>>
     },
+
+    Plus,
+    Minus,
+    Equals,
+    PlusMinus,
 }
